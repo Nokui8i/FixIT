@@ -1,0 +1,55 @@
+{
+  "expo": {
+    "name": "FixIT",
+    "slug": "fixit-mobile",
+    "scheme": "fixit",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#FFFFFF"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "bundleIdentifier": "com.fixit.mobile",
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "FixIT uses your location to find nearby professionals and set your service area."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#FFFFFF"
+      },
+      "softwareKeyboardLayoutMode": "resize",
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION"
+      ]
+    },
+    "web": {
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "FixIT uses your location to find nearby professionals and set your service area."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow FixIT to access your photos and videos for profile and portfolio showcase.",
+          "cameraPermission": "Allow FixIT to use the camera for your profile picture."
+        }
+      ],
+      "expo-font",
+      "expo-maps"
+    ]
+  }
+}
