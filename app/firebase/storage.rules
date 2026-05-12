@@ -1,0 +1,51 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function role() {
+      return signedIn() && request.auth.token.role is string
+        ? request.auth.token.role
+        : 'customer';
+    }
+
+    function isStaff() {
+      return signedIn() && role() in ['manager', 'admin', 'owner'];
+    }
+
+    // User avatars / account media (owner only).
+    match /users/{uid}/{allPaths=**} {
+      allow read, write: if signedIn() && request.auth.uid == uid;
+    }
+
+    // Pro portfolio media; owners upload/update, all authenticated users can read.
+    match /portfolio/{uid}/{allPaths=**} {
+      allow read: if signedIn();
+      allow write: if signedIn() && request.auth.uid == uid;
+    }
+
+    // Pro marketing landing hero videos (`uploadMyProLandingHeroVideo` → pro_videos/{uid}/hero.mp4).
+    match /pro_videos/{uid}/{allPaths=**} {
+      allow read: if signedIn();
+      allow write: if signedIn() && request.auth.uid == uid;
+    }
+
+    // Request attachments; only owner can upload/read until explicit share logic ships.
+    match /requests/{uid}/{allPaths=**} {
+      allow read, write: if signedIn() && request.auth.uid == uid;
+    }
+
+    // Pro onboarding compliance uploads (license, COI, ID).
+    // Pros can upload/read their own docs; staff can review through authenticated tools.
+    match /applications/{uid}/{allPaths=**} {
+      allow read: if isStaff() || (signedIn() && request.auth.uid == uid);
+      allow write: if signedIn() && request.auth.uid == uid;
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

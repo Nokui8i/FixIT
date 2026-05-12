@@ -1,0 +1,16 @@
+{
+  "name": "fixit-app-firebase",
+  "private": true,
+  "description": "Firebase CLI: rules, functions, deploy from /app",
+  "scripts": {
+    "firebase": "firebase",
+    "firebase:login": "firebase login",
+    "firebase:use": "firebase use --add",
+    "firebase:deploy": "firebase deploy",
+    "firebase:deploy:rules": "firebase deploy --only firestore:rules,firestore:indexes,storage",
+    "bootstrap:firestore": "powershell -ExecutionPolicy Bypass -File ./complete-fixit-firebase.ps1"
+  },
+  "devDependencies": {
+    "firebase-tools": "^13.35.1"
+  }
+}

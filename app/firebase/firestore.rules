@@ -1,0 +1,346 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function userDoc(uid) {
+      return get(/databases/$(database)/documents/users/$(uid));
+    }
+
+    function myUserDoc() {
+      return userDoc(request.auth.uid);
+    }
+
+    function normalizeRole(r) {
+      return r == 'pro' ? 'freelancer' : r;
+    }
+
+    function tokenRole() {
+      return signedIn() && request.auth.token.role is string
+        ? normalizeRole(request.auth.token.role)
+        : 'customer';
+    }
+
+    function storedRole() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && myUserDoc().data.role is string
+        ? normalizeRole(myUserDoc().data.role)
+        : 'customer';
+    }
+
+    function myRole() {
+      return tokenRole() in ['manager', 'admin', 'owner'] ? tokenRole() : storedRole();
+    }
+
+    function isManagerOrAbove() {
+      return signedIn() && myRole() in ['manager', 'admin', 'owner'];
+    }
+
+    function isAdminOrOwner() {
+      return signedIn() && myRole() in ['admin', 'owner'];
+    }
+
+    function isOwner() {
+      return signedIn() && myRole() == 'owner';
+    }
+
+    function isPhoneReady() {
+      return signedIn()
+        && myUserDoc().data.phone is string
+        && myUserDoc().data.phone.size() >= 8
+        && myUserDoc().data.phoneVerifiedAt is string;
+    }
+
+    /** Previous role string from existing doc; missing field treated as customer. */
+    function usersPrevRole() {
+      return resource.data.keys().hasAny(['role'])
+        ? normalizeRole(resource.data.role)
+        : 'customer';
+    }
+
+    /** Role on the document after this write (missing key keeps previous behavior via merge). */
+    function usersNextRole() {
+      return request.resource.data.keys().hasAny(['role'])
+        ? normalizeRole(request.resource.data.role)
+        : usersPrevRole();
+    }
+
+    function usersStaffRole(r) {
+      return r == 'manager' || r == 'admin' || r == 'owner';
+    }
+
+    function usersRoleWriteAllowed() {
+      return usersPrevRole() == usersNextRole()
+        || (!usersStaffRole(usersPrevRole())
+          && (usersNextRole() == 'customer'
+            || usersNextRole() == 'freelancer'));
+    }
+
+    function proOwnsDoc(proId) {
+      return signedIn() && request.auth.uid == proId;
+    }
+
+    function proProtectedCreateAllowed() {
+      return (!request.resource.data.keys().hasAny(['verification_status'])
+          || request.resource.data.verification_status == 'pending_approval')
+        && (!request.resource.data.keys().hasAny(['is_licensed'])
+          || request.resource.data.is_licensed == false)
+        && (!request.resource.data.keys().hasAny(['is_insured'])
+          || request.resource.data.is_insured == false)
+        && (!request.resource.data.keys().hasAny(['admin_notes'])
+          || request.resource.data.admin_notes == '')
+        && !request.resource.data.keys().hasAny([
+          'account_status',
+          'application_draft',
+          'compliance_private',
+          'legalName',
+          'dateOfBirth',
+          'serviceAddress',
+          'ssnOrEin',
+          'governmentIdUrl',
+          'criminalRecordDeclaration',
+          'stripe_connect_account_id',
+          'stripe_onboarding_status',
+          'stripe_identity_session_id',
+          'stripe_identity_status',
+          'payouts_enabled',
+          'charges_enabled',
+          'suspendedAt',
+          'suspendedBy',
+          'suspensionReason',
+          'verification_approved_at',
+          'verification_approved_by',
+          'verification_rejected_at',
+          'verification_rejected_by',
+          'reviewedAt',
+          'reviewedBy',
+          'rejection_reason'
+        ]);
+    }
+
+    function proProtectedUpdateAllowed() {
+      let changed = request.resource.data.diff(resource.data).affectedKeys();
+      let prevStatus = resource.data.keys().hasAny(['verification_status'])
+        ? resource.data.verification_status
+        : 'pending_approval';
+      return !changed.hasAny([
+          'account_status',
+          'application_draft',
+          'compliance_private',
+          'legalName',
+          'dateOfBirth',
+          'serviceAddress',
+          'ssnOrEin',
+          'governmentIdUrl',
+          'criminalRecordDeclaration',
+          'stripe_connect_account_id',
+          'stripe_onboarding_status',
+          'stripe_identity_session_id',
+          'stripe_identity_status',
+          'payouts_enabled',
+          'charges_enabled',
+          'suspendedAt',
+          'suspendedBy',
+          'suspensionReason',
+          'verification_approved_at',
+          'verification_approved_by',
+          'verification_rejected_at',
+          'verification_rejected_by',
+          'reviewedAt',
+          'reviewedBy',
+          'rejection_reason'
+        ])
+        && (!changed.hasAny(['verification_status'])
+          || (prevStatus == 'pending_approval'
+            && request.resource.data.verification_status == 'pending_approval'))
+        && (!changed.hasAny(['is_licensed'])
+          || ((!resource.data.keys().hasAny(['is_licensed']) || resource.data.is_licensed == false)
+            && request.resource.data.is_licensed == false))
+        && (!changed.hasAny(['is_insured'])
+          || ((!resource.data.keys().hasAny(['is_insured']) || resource.data.is_insured == false)
+            && request.resource.data.is_insured == false))
+        && (!changed.hasAny(['admin_notes'])
+          || ((!resource.data.keys().hasAny(['admin_notes']) || resource.data.admin_notes == '')
+            && request.resource.data.admin_notes == ''))
+        && (!changed.hasAny(['background_check_status'])
+          || ((!resource.data.keys().hasAny(['background_check_status'])
+              || resource.data.background_check_status == 'not_started')
+            && request.resource.data.background_check_status == 'not_started'))
+        && (!changed.hasAny(['verification_updated_at'])
+          || (prevStatus == 'pending_approval'
+            && request.resource.data.verification_status == 'pending_approval'));
+    }
+
+    match /users/{uid} {
+      allow read: if (signedIn() && request.auth.uid == uid) || isManagerOrAbove();
+      allow create: if signedIn() && request.auth.uid == uid
+        && (
+          !request.resource.data.keys().hasAny(['role'])
+          || request.resource.data.role in ['customer', 'freelancer', 'pro']
+        );
+      allow update: if isOwner()
+        || (signedIn() && request.auth.uid == uid
+          && usersRoleWriteAllowed());
+      allow delete: if false;
+    }
+
+    match /notifications/{notificationId} {
+      allow read: if isManagerOrAbove()
+        || (signedIn() && resource.data.userId == request.auth.uid);
+      allow create: if signedIn()
+        && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if signedIn()
+        && resource.data.userId == request.auth.uid;
+    }
+
+    match /banners/{bannerId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /categories/{categoryId} {
+      allow read: if true;
+      allow write: if isAdminOrOwner();
+    }
+
+    match /pro_profiles/{proId} {
+      allow read: if true;
+      allow create: if isOwner()
+        || (proOwnsDoc(proId)
+          && request.resource.data.ownerId == request.auth.uid
+          && proProtectedCreateAllowed());
+      allow update: if isOwner()
+        || (proOwnsDoc(proId)
+          && request.resource.data.ownerId == request.auth.uid
+          && (
+            resource.data.ownerId == request.auth.uid
+            || !resource.data.keys().hasAny(['ownerId'])
+          )
+          && proProtectedUpdateAllowed());
+      allow delete: if isOwner() || proOwnsDoc(proId);
+    }
+
+    match /pro_compliance/{proId} {
+      allow read: if isManagerOrAbove()
+        || (signedIn() && request.auth.uid == proId);
+      allow create, update: if isOwner()
+        || (signedIn()
+          && request.auth.uid == proId
+          && request.resource.data.ownerId == request.auth.uid
+          && !request.resource.data.keys().hasAny([
+            'reviewedAt',
+            'reviewedBy',
+            'reviewStatus',
+            'admin_notes'
+          ]));
+      allow delete: if isOwner();
+    }
+
+    match /service_requests/{requestId} {
+      allow create: if signedIn()
+        && request.resource.data.customerId == request.auth.uid
+        && (isPhoneReady() || isOwner());
+      allow read: if isManagerOrAbove()
+        || (signedIn() && resource.data.customerId == request.auth.uid);
+      allow update, delete: if isOwner()
+        || (signedIn() && resource.data.customerId == request.auth.uid);
+    }
+
+    match /quotes/{quoteId} {
+      allow read: if isManagerOrAbove()
+        || (signedIn()
+          && (resource.data.customerId == request.auth.uid
+            || resource.data.proId == request.auth.uid));
+      allow create, update, delete: if false;
+    }
+
+    match /bookings/{bookingId} {
+      allow read: if isManagerOrAbove()
+        || (signedIn()
+          && (resource.data.customerId == request.auth.uid
+            || resource.data.proId == request.auth.uid));
+      allow create, update, delete: if false;
+    }
+
+    match /payments/{paymentId} {
+      allow read: if isAdminOrOwner()
+        || (signedIn()
+          && (resource.data.customerId == request.auth.uid
+            || resource.data.proId == request.auth.uid));
+      allow create, update, delete: if false;
+    }
+
+    match /reviews/{reviewId} {
+      allow read: if isManagerOrAbove()
+        || (signedIn()
+          && (resource.data.customerId == request.auth.uid
+            || resource.data.proId == request.auth.uid));
+      allow create: if signedIn()
+        && request.resource.data.customerId == request.auth.uid
+        && request.resource.data.rating is number
+        && request.resource.data.rating >= 1
+        && request.resource.data.rating <= 5;
+      allow update, delete: if false;
+    }
+
+    match /chat_threads/{threadId} {
+      allow read: if isManagerOrAbove()
+        || (signedIn() && request.auth.uid in resource.data.participantIds);
+      allow create, update: if signedIn()
+        && request.auth.uid in request.resource.data.participantIds;
+      allow delete: if false;
+    }
+
+    match /chat_messages/{threadId}/items/{messageId} {
+      allow read: if isManagerOrAbove()
+        || (signedIn()
+          && request.auth.uid in get(/databases/$(database)/documents/chat_threads/$(threadId)).data.participantIds);
+      allow create: if signedIn()
+        && request.auth.uid in get(/databases/$(database)/documents/chat_threads/$(threadId)).data.participantIds;
+      allow update, delete: if false;
+    }
+
+    match /pro_review_queue/{queueId} {
+      allow read: if isManagerOrAbove();
+      allow write: if false;
+    }
+
+    match /trade_license_review_queue/{queueId} {
+      allow read: if isManagerOrAbove();
+      allow write: if false;
+    }
+
+    match /content_review_queue/{queueId} {
+      allow read: if isManagerOrAbove();
+      allow write: if false;
+    }
+
+    match /account_deletion_requests/{uid} {
+      allow read: if isAdminOrOwner()
+        || (signedIn() && request.auth.uid == uid);
+      allow write: if false;
+    }
+
+    match /admin_audit_logs/{logId} {
+      allow read: if isAdminOrOwner();
+      allow write: if false;
+    }
+
+    match /deletion_audit_logs/{logId} {
+      allow read: if isAdminOrOwner();
+      allow write: if false;
+    }
+
+    match /cleanup_failures/{logId} {
+      allow read: if isAdminOrOwner();
+      allow write: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

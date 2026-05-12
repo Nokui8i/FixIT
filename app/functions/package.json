@@ -1,0 +1,17 @@
+{
+  "name": "fixit-functions",
+  "private": true,
+  "engines": {
+    "node": "20"
+  },
+  "main": "index.js",
+  "scripts": {
+    "lint": "echo \"No lint yet\"",
+    "test": "node --check index.js && node scripts/backendFoundationSmoke.js"
+  },
+  "dependencies": {
+    "firebase-admin": "^13.0.0",
+    "firebase-functions": "^6.0.0",
+    "stripe": "^22.1.1"
+  }
+}

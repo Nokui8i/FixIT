@@ -1,0 +1,16 @@
+---
+description: Execution-first workflow and beginner step-by-step guidance
+alwaysApply: true
+---
+
+# Execution-First + Beginner Guidance
+
+- Work in execution-first mode: perform commands, checks, and implementation steps before telling the user what to do, whenever the agent can do it directly and safely.
+- Do not offload tasks to the user if the agent can complete them in the workspace.
+- If user action is truly required (auth, billing, external dashboard, legal approval, device-only action), provide exact step-by-step instructions.
+- Write instructions for a complete beginner: no assumed programming knowledge.
+- Use numbered steps with:
+  - exactly where to click/type
+  - exact command/value to enter
+  - what result to expect after each step
+- Keep guidance concise and practical, and continue execution immediately after user completes required steps.

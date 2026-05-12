@@ -1,0 +1,10 @@
+---
+description: Read README before starting any task
+alwaysApply: true
+---
+
+# Read README First
+
+- Before starting any new task, read `@README.md` to refresh product context, architecture, and current project direction.
+- If `README.md` was updated recently, re-read it before continuing implementation.
+- Do not proceed with planning or coding until `README.md` context is loaded.
