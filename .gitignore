@@ -20,3 +20,9 @@ firebase-debug.*.log
 *.jks
 serviceAccount*.json
 *credentials*.json
+
+.git-backups/
+._wolt_ref/
+_wolt_reference/
+cubancodepath-wolt-react-native/
+wealthometer-wolt-clone/
